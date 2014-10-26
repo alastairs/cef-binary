@@ -17,6 +17,7 @@ $Cef64 = Join-Path $WorkingDir  'cef_binary_3.y.z_windows64'
 $Cef64vcx =Join-Path $Cef64 'libcef_dll_wrapper.vcxproj'
 
 $CefVersion = "3.2139.1840"
+$CefPackageVersion = "3.2139.1840-pre0"
 $Cef32Url = "http://software.odinkapital.no/opensource/cef/cef_binary_{0}_windows32.zip" -f $CefVersion
 $Cef64Url = "http://software.odinkapital.no/opensource/cef/cef_binary_{0}_windows64.zip" -f $CefVersion
 
@@ -115,7 +116,17 @@ function Unzip
         New-Item -ItemType Directory -Path $ExtractToDestination | Out-Null
     }
     $Destination = $ShellApp.namespace($ExtractToDestination)
-    $Destination.Copyhere($Zip.items())
+	
+	# Extract the First Folder within the zip
+	foreach($item In $Zip.items()) 
+	{ 
+      if ($item.GetFolder -ne $Null) 
+      {
+	    $Destination.Copyhere($item.GetFolder.items(), 0x10)
+		
+		break;
+      }
+	}
 }
 
 function Bootstrap
@@ -132,18 +143,28 @@ function Bootstrap
     New-Item -ItemType Directory -Path $ToolsDir | Out-Null
   }
 
-  if(-not (Test-Path $Cef32vcx)) {
-    Write-Output "Downloading $Cef32Url"
-    Start-BitsTransfer $Cef32Url $ToolsDir\cef_binary_windows32.zip
-    Write-Output "Extracting..."
-    Unzip $ToolsDir\cef_binary_windows32.zip $Cef32
+  if((-not (Test-Path $ToolsDir\cef_binary_windows32.zip)) -and (-not (Test-Path $Cef32vcx))) {
+    if(-not (Test-Path $ToolsDir\cef_binary_windows32.zip)) {
+	  Write-Output "Downloading $Cef32Url"
+      Start-BitsTransfer $Cef32Url $ToolsDir\cef_binary_windows32.zip
+    }
+  
+    if(-not (Test-Path $Cef32vcx)) {
+      Write-Output "Extracting..."
+      Unzip $ToolsDir\cef_binary_windows32.zip $Cef32
+    }
   }
-
-  if(-not (Test-Path $Cef64vcx)) {
-    Write-Output "Downloading $Cef64Url"
-    Start-BitsTransfer $Cef64Url $ToolsDir\cef_binary_windows64.zip
-    Write-Output "Extracting..."
-    Unzip $ToolsDir\cef_binary_windows64.zip $Cef64
+  
+  if((-not (Test-Path $ToolsDir\cef_binary_windows64.zip)) -and (-not (Test-Path $Cef64vcx))) {
+    if(-not (Test-Path $ToolsDir\cef_binary_windows64.zip)) {
+      Write-Output "Downloading $Cef64Url"
+      Start-BitsTransfer $Cef64Url $ToolsDir\cef_binary_windows64.zip
+    }
+  
+    if(-not (Test-Path $Cef64vcx)) {
+      Write-Output "Extracting..."
+      Unzip $ToolsDir\cef_binary_windows64.zip $Cef64
+    }
   }
 
   if (Test-Path($Cef)) {
@@ -369,8 +390,8 @@ function Nupkg
     $Xml.Save($RedistTargetsFilename)
 	
     # Build 32bit packages
-    . $Nuget pack nuget\cef.redist.nuspec -NoPackageAnalysis -Version $CefVersion -Properties 'Configuration=Debug;DotConfiguration=.Debug;Platform=x86;CPlatform=windows32;' -OutputDirectory nuget
-    . $Nuget pack nuget\cef.redist.nuspec -NoPackageAnalysis -Version $CefVersion -Properties 'Configuration=Release;DotConfiguration=.Release;Platform=x86;CPlatform=windows32;' -OutputDirectory nuget
+    #. $Nuget pack nuget\cef.redist.nuspec -NoPackageAnalysis -Version $CefPackageVersion -Properties 'Configuration=Debug;DotConfiguration=.Debug;Platform=x86;CPlatform=windows32;' -OutputDirectory nuget
+    . $Nuget pack nuget\cef.redist.nuspec -NoPackageAnalysis -Version $CefPackageVersion -Properties 'Configuration=Release;DotConfiguration=;Platform=x86;CPlatform=windows32;' -OutputDirectory nuget
 	
     # Write 64bit redist target
     [xml]$Xml = Get-Content $RedistTargetsFilename
@@ -378,15 +399,15 @@ function Nupkg
     $Xml.Save($RedistTargetsFilename)
 	
     # Build 64bit packages
-    . $Nuget pack nuget\cef.redist.nuspec -NoPackageAnalysis -Version $CefVersion -Properties 'Configuration=Debug;DotConfiguration=.Debug;Platform=x64;CPlatform=windows64;' -OutputDirectory nuget
-    . $Nuget pack nuget\cef.redist.nuspec -NoPackageAnalysis -Version $CefVersion -Properties 'Configuration=Release;DotConfiguration=.Release;Platform=x64;CPlatform=windows64;' -OutputDirectory nuget
+    #. $Nuget pack nuget\cef.redist.nuspec -NoPackageAnalysis -Version $CefPackageVersion -Properties 'Configuration=Debug;DotConfiguration=.Debug;Platform=x64;CPlatform=windows64;' -OutputDirectory nuget
+    . $Nuget pack nuget\cef.redist.nuspec -NoPackageAnalysis -Version $CefPackageVersion -Properties 'Configuration=Release;DotConfiguration=;Platform=x64;CPlatform=windows64;' -OutputDirectory nuget
 	
     # Build sdk
     $Filename = Resolve-Path ".\nuget\cef.sdk.props"
-    $Text = (Get-Content $Filename) -replace '<CefSdkVer>.*<\/CefSdkVer>', "<CefSdkVer>cef.sdk.$CefVersion</CefSdkVer>"
+    $Text = (Get-Content $Filename) -replace '<CefSdkVer>.*<\/CefSdkVer>', "<CefSdkVer>cef.sdk.$CefPackageVersion</CefSdkVer>"
     [System.IO.File]::WriteAllLines($Filename, $Text)
 
-    . $Nuget pack nuget\cef.sdk.nuspec -NoPackageAnalysis -Version $CefVersion -OutputDirectory nuget
+    . $Nuget pack nuget\cef.sdk.nuspec -NoPackageAnalysis -Version $CefPackageVersion -OutputDirectory nuget
 }
 
 function DownloadNuget()
